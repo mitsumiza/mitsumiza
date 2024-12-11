@@ -1,113 +1,122 @@
 <?php
 
-function processText($text) {
-    $output = '';
+// подключение к бд
+function dbConnect() {
+    $servername = "localhost";
+    $username = "root";
+    $password = ""; 
+    $dbname = "winter_tourism";    
 
-    // Создаем экземпляр DOMDocument
-    $doc = new DOMDocument();
-    @$doc->loadHTML('<?xml encoding="utf-8" ?>' . $text);
-
-    // Сохраняем исходный текст для задач, которые зависят от оригинала
-    $html_text = $text;
-
-    // Задача 5: Замена тире
-    //$formattedText = formatHyphens($html_text);
-    //$output .= '<div class="task"><p>Задание 5: Текст с отформатированными тире:</p><p>' . $formattedText . '</p></div><br>';
-
-    // Задача 6: Расставляем запятые и заменяем многоточия на исходном тексте
-    //$formattedText = formatCommasAndEllipses($html_text);
-    //$output .= '<div class="task"><p>Задание 6: Текст после проставления запятых перед "а" и "но":</p><p>' . $formattedText . '</p></div><br>';
-
-    //Задача 13: Создаем указатель изображений
-    //$output .= '<div class="task"><p>Задание 13: Указатель изображений:</p>' . createImageIndex($doc) . '</div><br>';
-
-    //Задача 17: Выделение повторов
-    $formattedText = highlightTechnicalRepeats($html_text); 
-    $output .= '<div class="task"><p>Задание 17: Текст с подсвеченными повторами:</p><p>' . $formattedText . '</p></div><br>';
-
-    // Введённый текст после всех преобразований (итоговый вывод)
-    //$output .= '<div class="text"><h3>Введённый текст после всех преобразований:</h3><p>' . formatCommasAndEllipses($html_text) . '</p></div><br>'; 
-
-    return $output;
-}
-
-// Сохранение исходного текста
-function extractAndLinkImages($doc) {
-    $images = $doc->getElementsByTagName('img');
-    $result = '';
-    $index = 1;
-
-    foreach ($images as $img) {
-        // Добавляем id для каждой картинки
-        $img->setAttribute('id', 'img' . $index);
-        // Выводим изображение как HTML (в виде строки с тегом <br> в конце)
-        $result .= $doc->saveHTML($img) . "<br>";
-        $index++;
+    try {
+        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        return $conn;
+    } catch(PDOException $e) {
+        error_log("Ошибка подключения к сети: " . $e->getMessage());
+        return false; 
     }
-
-    return $result ?: '<p>Картинок не найдено</p>';
 }
 
-// Задание 5: Тире
-function formatHyphens($text) {
-    // Замена тире в пробелах на среднее тире
-    $text = preg_replace('/\s-\s/', ' &ndash; ', $text);
 
-    // Замена двойного минуса на длинное тире и привязка к предыдущему слову
-    $text = preg_replace('/\s--\s/', ' &mdash;', $text);
-
-    return $text;
+// извлечение данных из бд
+function fetchData($tableName, $conn) {
+  try {
+      // запрос для извлечения данных
+      $stmt = $conn->query("SELECT * FROM $tableName");
+      // извлечение данных в виде массива
+      $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+      return $data;
+  } catch(PDOException $e) {
+    error_log("Ошибка извлечения данных: " . $e->getMessage());
+    return false;
+  }
 }
 
-// Задание 6: Запятые и Многоточия
-function formatCommasAndEllipses($text) {
-    // Заменяем пробел перед союзами "а" и "но" на запятую с пробелом
-    $text = preg_replace('/\s+(а|но)\b/iu', ', $1', $text);
-
-    // Заменяем многоточие на символ …
-    $text = str_replace('...', '…', $text);
-
-    return $text;
-}
-
-// Задание 13: Указатель украшений
-function createImageIndex($doc) {
-    $images = $doc->getElementsByTagName('img');
-    $index = '';
-    $i = 1;
-
-    foreach ($images as $img) {
-        $alt = $img->getAttribute('alt');
-        $index .= "<p><a href=\"#img$i\">Картинка $i: $alt</a></p>";
-        $i++;
+// преобразует данные в XML
+function generateXML($data, $tableName) {
+    // создает новые данные и добавляет дочерние элементы, потом возвращает их в XML строке
+    $xml = new SimpleXMLElement("<$tableName/>");
+    foreach ($data as $row) {
+        $item = $xml->addChild('item');
+        foreach ($row as $key => $value) {
+            $item->addChild($key, htmlspecialchars($value));
+        }
     }
-
-    return $index ?: '<p>Картинок для указателя не найдено</p>';
+    return $xml->asXML();
 }
 
-// Задание 17: Выделение повторов
-function highlightTechnicalRepeats($text) {
-  $words = explode(' ', $text); // Разбиваем текст по пробелам
-  $highlightedWords = [];
-
-  foreach ($words as $word) {
-    $parts = explode('-', $word); // Разбиваем слово по дефисам
-    $highlightedParts = [];
-
-    $previousPart = null;
-    foreach ($parts as $part) {
-      if ($previousPart !== null && $part === $previousPart) {
-        $highlightedParts[] = "<span style='background-color: yellow;'>$part</span>";
-      } else {
-        $highlightedParts[] = $part;
-      }
-      $previousPart = $part;
+// сохраняет содержимое в файл
+function saveFile($filePath, $content){
+    if (file_put_contents($filePath, $content) !== false) {
+        return true;
+    } else {
+        error_log("Error saving file: " . $filePath);
+        return false;
     }
+}
 
-    $highlightedWords[] = implode('-', $highlightedParts);
+// загружает XML по ссылке
+function importFromURL($url) {
+  $ch = curl_init($url);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  $xmlData = curl_exec($ch);
+  curl_close($ch);
+
+  if ($xmlData === false) {
+      error_log("Ошибка извлечения XML из URL: $url");
+      return false;
   }
 
-  return implode(' ', $highlightedWords);
+  libxml_use_internal_errors(true); // включает внутренние ошибки libxml
+  $xml = simplexml_load_string($xmlData);
+  if ($xml === false) {
+      $errors = libxml_get_errors();
+      foreach ($errors as $error) {
+          error_log("XML ошибка: " . $error->message);
+      }
+      libxml_clear_errors();
+      return false;
+  }
+  return $xml;
+}
+
+// проверяет валидность
+function validateXML($xml) {
+  SimpleXMLElement.
+  return $xml instanceof SimpleXMLElement; 
+
+}
+
+// импортирует данные из XML-файла в бд
+function importData($xml, $tableName, $conn) {
+  // удаляем таблицу, если она уже существует  
+  $conn->query("DROP TABLE IF EXISTS $tableName"); 
+  // создаем новую таблицу, идентичную products
+  $conn->query("CREATE TABLE $tableName LIKE products"); 
+
+  $count = 0;
+  // запрос для вставки данных
+  $stmt = $conn->prepare("INSERT INTO $tableName (img_path, name, id_type, description, cost) VALUES (?, ?, ?, ?, ?)");
+    
+  foreach ($xml->item as $item) {
+    // извлекаем данные из XML и преобразуем в строки
+    $imgPath = (string)($item->img_path ?? 'no_img.png');  
+    $name = (string)($item->name ?? '');                
+    $idType = (int)($item->id_type ?? 0);              
+    $description = (string)($item->description ?? '');    
+    $cost = (int)($item->cost ?? 0);      
+
+    // выполняем запрос для вставки данных
+    $stmt->execute([$drugName, $price, $quantity]); 
+
+    //пПроверяем кол-во добавленных строк
+    if ($stmt->rowCount() > 0) {
+      $count++;
+    } else {
+      error_log("Error inserting row: " . $stmt->errorInfo()[2]);
+    }
+  }
+  return $count;
 }
 
 ?>
