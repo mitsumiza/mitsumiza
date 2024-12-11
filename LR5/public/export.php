@@ -1,7 +1,7 @@
 <?php
 require '../templates/header.php';
 
-$tableName = 'products'; // Имя таблицы изменено на products
+$tableName = 'products'; 
 $exportedTableName = $tableName . '_exported';
 $message = '';
 
