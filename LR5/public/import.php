@@ -7,22 +7,24 @@ $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['url']) && !empty($_POST['url'])) {
         $url = $_POST['url'];
-
+        // подключение к базе данных
         $conn = dbConnect();
         if ($conn === false) {
             $message = "Ошибка подключения к базе данных: " . $conn->errorInfo()[2];
         } else {
             try {
+                // импортируем данные из ссылки
                 $xml = importFromURL($url);
                 if ($xml === false) {
                     throw new Exception("Ошибка при загрузке или парсинге XML файла.");
                 }
-
+                // проверяем валидность файла
                 if (!validateXML($xml)) {
                     throw new Exception("Невалидный XML файл.");
                 }
 
-                $tableName = 'products'; // Или другое имя вашей таблицы
+                $tableName = 'products'; 
+                // импортируем данные в бд
                 $importedRows = importData($xml, $tableName, $conn);
 
                 if ($importedRows === false) {
