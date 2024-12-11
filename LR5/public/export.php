@@ -1,29 +1,36 @@
 <?php
 require '../templates/header.php';
-
+// таблица бд
 $tableName = 'products'; 
+// файл для экспорта
 $exportedTableName = $tableName . '_exported';
 $message = '';
 
+// пост-запрос
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    // подключение к бд 
     $conn = dbConnect();
     if ($conn === false) {
         $message = "Ошибка подключения к базе данных: " . $conn->errorInfo()[2];
     } else {
         try {
+            // селект запрос для извлечения данных
             $stmt = $conn->query("SELECT * FROM $tableName");
             if (!$stmt) {
                 throw new Exception("Ошибка выполнения запроса: " . $conn->errorInfo()[2]);
             }
+            // данные выводятся в массив
             $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // генерируем XML-данные 
             $xml = generateXML($data, $tableName);
 
             $filename = $exportedTableName . '.xml';
             $filePath = '../files/' . $filename;
-
+            // сохранение данных в файл 
             if (file_put_contents($filePath, $xml) !== false) {
                 $message = "Файл с данными сохранен на диск по адресу: files/" . $filename;
             } else {
+                // обработка ошибок
                 throw new Exception("Ошибка при сохранении файла на сервер.");
             }
 
