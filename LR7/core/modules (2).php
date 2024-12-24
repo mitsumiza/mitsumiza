@@ -3,11 +3,13 @@ session_start(); // Стартуем сессии, чтобы отслежива
 
 // Подключение к базе данных
 try {
+    // Создаем объект PDO для подключения к базе данных
     $pdo = new PDO('mysql:host=localhost;dbname=winter_tourism', 'root', '');
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); // Установка режима обработки ошибок
 } catch (PDOException $e) {
+    // Обработка ошибок подключения к базе данных
     echo "Ошибка подключения к базе данных: " . htmlspecialchars($e->getMessage());
-    exit;
+    exit; // Завершаем выполнение скрипта при ошибке
 }
 
 /**
@@ -17,6 +19,7 @@ try {
  * @return array|false Массив продуктов или false в случае ошибки.
  */
 function getFullList($pdo) {
+    // SQL-запрос для получения списка продуктов с их типами
     $sql = "SELECT p.id,
                    p.img_path,
                    p.name,
@@ -25,16 +28,19 @@ function getFullList($pdo) {
                    p.cost
             FROM products p
             JOIN types t ON p.id_type = t.id";
-    $arBinds = [];
+    $arBinds = []; // Массив для связывания параметров запроса
     
+    // Проверка на наличие фильтров в запросе
     if (!key_exists('clearFilter', $_GET) && count($_GET) > 0) {
         $whereParts = []; // Массив для хранения частей условия WHERE
     
+        // Фильтрация по имени продукта
         if (!empty($_GET['name'])) {
             $whereParts[] = "p.name LIKE :name";
             $arBinds['name'] = '%' . htmlspecialchars($_GET['name']) . '%'; // Экранируем входные данные
         }
     
+        // Фильтрация по типу продукта
         if (!empty($_GET['type_name'])) {
             $whereParts[] = "t.id = :type_id";
             // Подзапрос для получения id типа по имени
@@ -42,37 +48,41 @@ function getFullList($pdo) {
             $stmt->execute(['type_name_for_id' => htmlspecialchars($_GET['type_name'])]);
             $type_id_data = $stmt->fetch(PDO::FETCH_ASSOC);
             if ($type_id_data) {
-                $arBinds['type_id'] = $type_id_data['id'];
+                $arBinds['type_id'] = $type_id_data['id']; // Добавляем id типа в массив связывания
             } else {
                 return []; // Если такого типа нет, возвращаем пустой массив
             }
         }
     
+        // Фильтрация по описанию продукта
         if (!empty($_GET['description'])) {
             $whereParts[] = "p.description LIKE :description";
             $arBinds['description'] = '%' . htmlspecialchars($_GET['description']) . '%'; // Экранируем входные данные
         }
     
+        // Фильтрация по стоимости продукта
         if (!empty($_GET['cost'])) {
             $whereParts[] = "p.cost = :cost";
             $arBinds['cost'] = htmlspecialchars($_GET['cost']); // Экранируем входные данные
         }
     
-        if (!empty($whereParts)) { // Проверяем, есть ли части условия
+        // Если есть условия фильтрации, добавляем их в запрос
+        if (!empty($whereParts)) {
             $sql .= " WHERE " . implode(" AND ", $whereParts); // Соединяем части условия с помощью AND
         }
     }
     
+    // Подготавливаем и выполняем запрос
     $stmt = $pdo->prepare($sql);
     $result = $stmt->execute($arBinds);
     
     if ($result) {
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC); // Возвращаем все результаты в виде ассоциативного массива
     } else {
         // Обработка ошибки выполнения запроса
         echo "Ошибка выполнения запроса: ";
         print_r($stmt->errorInfo()); // Выводим информацию об ошибке
-        return false;
+        return false; // Возвращаем false при ошибке
     }
 }
 
@@ -85,25 +95,27 @@ function getFullList($pdo) {
 function getOptionGroups($pdo)
 {
     try {
-      $sql = "SELECT t.id, t.name FROM types t"; // ИСПРАВЛЕНО: Используется таблица types
-      $stmt = $pdo->prepare($sql);
-      if ($stmt->execute()) {
-        $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if ($groups) {
-          return $groups;
+        // SQL-запрос для получения всех типов продуктов
+        $sql = "SELECT t.id, t.name FROM types t"; 
+        $stmt = $pdo->prepare($sql);
+        if ($stmt->execute()) {
+            $groups = $stmt->fetchAll(PDO::FETCH_ASSOC); // Получаем все группы
+            if ($groups) {
+                return $groups; // Возвращаем группы
+            } else {
+                return []; // Возвращаем пустой массив, если групп нет
+            }
         } else {
-          return [];
+            // Обработка ошибки выполнения запроса
+            echo "Ошибка выполнения запроса: ";
+            print_r($stmt->errorInfo());
+            return false; // Возвращаем false при ошибке
         }
-      } else {
-        echo "Ошибка выполнения запроса: ";
-        print_r($stmt->errorInfo());
-        return false;
-      }
     } catch (PDOException $e) {
+        // Обработка исключений
         echo "Ошибка: " . $e->getMessage();
     }
 }
-
 
 /**
  * Устанавливает флэш-сообщение для отображения пользователю.
@@ -112,6 +124,7 @@ function getOptionGroups($pdo)
  * @param string $message Сообщение для отображения.
  */
 function setFlashMessage($type, $message) {
+    // Сохраняем сообщение во флэш-сессии
     $_SESSION['flash_message'] = [
         'type' => $type,
         'message' => $message
@@ -124,10 +137,12 @@ function setFlashMessage($type, $message) {
  * @return array|null Массив с типом и сообщением или null, если сообщения нет.
  */
 function getFlashMessage() {
+    // Проверяем, есть ли флэш-сообщение в сессии
     if (isset($_SESSION['flash_message'])) {
-        $flash = $_SESSION['flash_message'];
-        unset($_SESSION['flash_message']);
-        return $flash;
+        $flash = $_SESSION['flash_message']; // Сохраняем сообщение
+        unset($_SESSION['flash_message']); // Удаляем сообщение из сессии
+        return $flash; // Возвращаем сообщение
     }
-    return null;
+    return null; // Возвращаем null, если сообщения нет
 }
+?>
